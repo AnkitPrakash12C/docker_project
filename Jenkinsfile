@@ -1,29 +1,49 @@
-@Library('Shared')_
-pipeline{
-    agent { label 'dev-server'}
+pipeline {
+    agent any
     
-    stages{
-        stage("Code clone"){
-            steps{
-                sh "whoami"
-            clone("https://github.com/LondheShubham153/django-notes-app.git","main")
-            }
-        }
-        stage("Code Build"){
-            steps{
-            dockerbuild("notes-app","latest")
-            }
-        }
-        stage("Push to DockerHub"){
-            steps{
-                dockerpush("dockerHubCreds","notes-app","latest")
-            }
-        }
-        stage("Deploy"){
-            steps{
-                deploy()
+    stages {
+        stage('Clone Code') {
+            steps {
+                git branch: 'main',
+                    url: 'https://github.com/LondheShubham153/django-notes-app.git'
             }
         }
         
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    docker.build("notes-app:latest")
+                }
+            }
+        }
+        
+        stage('Push to DockerHub') {
+            steps {
+                script {
+                    docker.withRegistry('https://registry.hub.docker.com', 'dockerHubCreds') {
+                        docker.image("notes-app:latest").push()
+                    }
+                }
+            }
+        }
+        
+        stage('Deploy') {
+            steps {
+                sh 'docker-compose down'
+                sh 'docker-compose up -d'
+            }
+        }
+    }
+    
+    post {
+        always {
+            cleanWs()
+        }
+        success {
+            echo 'Pipeline completed successfully!'
+        }
+        failure {
+            echo 'Pipeline failed!'
+        }
     }
 }
